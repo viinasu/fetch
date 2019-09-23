@@ -9,33 +9,35 @@ function checkStatus(response) {
   if (response.status >= 200 && response.status < 300) {
     return response
   } else {
-    var error = new Error(response.statusText)
+    let error = new Error(response.statusText);
     error.response = response;
-    throw error
+    throw error;
   }
 }
 
 // Your retrieve function plus any additional functions go here ...
-const retrieve = (options) => {
+const retrieve = ({ page = 1, colors = [] } = {}) => {
   //TODO: confirm they are sending an error / it makes sense
-  options = Object.assign({
-    limit: 10,
-    offset: 0,
-    color: []
-  }, options);
 
-  //support these keys
-  // options = { page: <1, 2>, colors: [],  }
-  console.log('fetch!', fetch);
-  return fetch(path, options)
+
+  let fetchOptions = {
+    limit: 11,
+    offset: (page - 1) * 10,
+    "color[]": colors
+  };
+
+  let uri = new URI(window.path);
+  return fetch(uri.search(fetchOptions))
     .then((response)=> {
-      return response.json();4
+      checkStatus(response);
+
+      return response.json();
     })
-    .then(function(responseJson) {
-      let page = 1;
+    .then(function(response) {
+
+      let pageItems = response.slice(0, 10);
       let previousPage = page - 1;
-      let startingIndex = (page - 1) * 10;
-      let pageItems = responseJson.slice(startingIndex, startingIndex + 10);
+      let nextPage = response.length === 11 ? page + 1 : null;
 
 
       let getOpen = (pageItems) => {
@@ -47,16 +49,25 @@ const retrieve = (options) => {
       let transformedData = {
         ids: pageItems.map((item) => item.id),
         previousPage: previousPage === 0 ? null : previousPage,
-        nextPage: page + 1,
+        nextPage: nextPage,
         closedPrimaryCount: pageItems.filter((item) => item.disposition === "closed" && ["red", "blue", "yellow"].includes(item.color)).length,
         open: getOpen(pageItems)
       };
 
 
-
       return transformedData;
     })
-    .catch(error => console.log(error));
+    .catch((error) => {
+      console.log(error);
+      //TODO: refactor - transformedData
+      return {
+        ids: [],
+        previousPage: null,
+        nextPage: null,
+        closedPrimaryCount: 0,
+        open: []
+      }
+    });
 };
 
 export default retrieve;
