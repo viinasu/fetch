@@ -4,7 +4,40 @@ import URI from "urijs";
 // /records endpoint
 window.path = "http://localhost:3000/records";
 
-// from https://github.com/github/fetch
+// Your retrieve function plus any additional functions go here ...
+const retrieve = ({ page = 1, colors = [] } = {}) => {
+
+  return fetch(recordsPath(page, colors))
+    .then((response)=> {
+      checkStatus(response);
+      return response.json();
+    })
+    .then(function(response) {
+      const pageItems = response.slice(0, 10);
+      const hasNextPage = response.length > 10;
+
+      return {
+        ids: pageItems.map((item) => item.id),
+        previousPage: page === 1 ? null : page - 1,
+        nextPage: hasNextPage ? page + 1 : null,
+        closedPrimaryCount: itemsWithClosedDispositionAndPrimaryColor(pageItems).length,
+        open: itemsWithOpenDisposition(pageItems)
+      };
+    })
+    .catch((error) => {
+      console.log(error);
+
+      return {
+        ids: [],
+        previousPage: null,
+        nextPage: null,
+        closedPrimaryCount: 0,
+        open: []
+      };
+    });
+};
+
+// helper functions
 function checkStatus(response) {
   if (response.status >= 200 && response.status < 300) {
     return response
@@ -15,59 +48,24 @@ function checkStatus(response) {
   }
 }
 
-// Your retrieve function plus any additional functions go here ...
-const retrieve = ({ page = 1, colors = [] } = {}) => {
-  //TODO: confirm they are sending an error / it makes sense
-
-
-  let fetchOptions = {
-    limit: 11,
+const recordsPath = (page, colors) => {
+  let queryParams = {
+    limit: 11, /* fetch an extra item to check for presence of nextPage */
     offset: (page - 1) * 10,
     "color[]": colors
   };
 
-  let uri = new URI(window.path);
-  return fetch(uri.search(fetchOptions))
-    .then((response)=> {
-      checkStatus(response);
+  return new URI(window.path).search(queryParams);
+};
 
-      return response.json();
-    })
-    .then(function(response) {
+const itemsWithOpenDisposition = (pageItems) => {
+  let items = pageItems.filter((item) => item.disposition === "open");
+  items.forEach((item) => item.isPrimary = ["red", "blue", "yellow"].includes(item.color));
+  return items;
+};
 
-      let pageItems = response.slice(0, 10);
-      let previousPage = page - 1;
-      let nextPage = response.length === 11 ? page + 1 : null;
-
-
-      let getOpen = (pageItems) => {
-        let thing = pageItems.filter((item) => item.disposition === "open");
-        thing.forEach((item) => item.isPrimary = ["red", "blue", "yellow"].includes(item.color));
-        return thing;
-      };
-
-      let transformedData = {
-        ids: pageItems.map((item) => item.id),
-        previousPage: previousPage === 0 ? null : previousPage,
-        nextPage: nextPage,
-        closedPrimaryCount: pageItems.filter((item) => item.disposition === "closed" && ["red", "blue", "yellow"].includes(item.color)).length,
-        open: getOpen(pageItems)
-      };
-
-
-      return transformedData;
-    })
-    .catch((error) => {
-      console.log(error);
-      //TODO: refactor - transformedData
-      return {
-        ids: [],
-        previousPage: null,
-        nextPage: null,
-        closedPrimaryCount: 0,
-        open: []
-      }
-    });
+const itemsWithClosedDispositionAndPrimaryColor = (pageItems) => {
+  return pageItems.filter((item) => item.disposition === "closed" && ["red", "blue", "yellow"].includes(item.color))
 };
 
 export default retrieve;
